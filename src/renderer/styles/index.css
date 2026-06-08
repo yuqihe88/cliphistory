@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   ClipHistory — 全局样式
+   ============================================================ */
+
+/* ---- 基础重置 ---- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ---- 自定义滚动条 ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #BDBDBD;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9E9E9E;
+}
+
+/* ---- 卡片闪烁动画（复制反馈） ---- */
+@keyframes flash-primary {
+  0%   { background-color: #90CAF9; }
+  100% { background-color: transparent; }
+}
+
+.card-flash {
+  animation: flash-primary 300ms ease-out;
+}
+
+/* 置顶卡片的闪光动画使用 primary-200 → transparent 避免背景色跳变 */
+@keyframes flash-pinned {
+  0%   { background-color: #90CAF9; }
+  100% { background-color: transparent; }
+}
+
+.card-flash-pinned {
+  animation: flash-pinned 300ms ease-out;
+}
+
+/* ---- 过渡动画 ---- */
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-down {
+  animation: slide-down 200ms ease-out;
+}
+
+/* ---- 文本截断 ---- */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
