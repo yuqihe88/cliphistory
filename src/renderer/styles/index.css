@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 /* ============================================================
-   ClipHistory — 全局样式
+   ClipHistory — 全局样式（Liquid Glass 液态玻璃主题 v2）
+   关键：底色鲜艳 → 玻璃高透明 + 高模糊 + 高饱和渗透，
+   让背景色彩透过玻璃产生真实的"液态玻璃"质感
    ============================================================ */
 
 /* ---- 基础重置 ---- */
@@ -19,9 +21,103 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* ---- 自定义滚动条 ---- */
+/* ---- 液态玻璃底色：鲜艳极光 ---- */
+body {
+  background-color: #DCEBFF;
+  background-image:
+    radial-gradient(720px 520px at 90% 0%,   rgba(33, 120, 243, 0.42), transparent 64%),
+    radial-gradient(640px 460px at 0%  18%,  rgba(14, 200, 235, 0.34), transparent 64%),
+    radial-gradient(680px 520px at 88% 78%,  rgba(139, 92, 246, 0.30), transparent 62%),
+    radial-gradient(560px 420px at 6%  88%,  rgba(244, 114, 182, 0.22), transparent 60%),
+    radial-gradient(480px 360px at 45% 45%,  rgba(96, 165, 250, 0.18), transparent 65%),
+    linear-gradient(155deg, #EAF4FF 0%, #DCEAFE 48%, #E9E6FF 100%);
+  background-attachment: fixed;
+}
+
+/* ---- 玻璃面板基类 ----
+   高透明白 + 强模糊 + 饱和度提升（色彩透玻璃渗出）
+   + 白色高光上缘 + 彩色柔和投影 */
+.glass {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.20));
+  backdrop-filter: blur(26px) saturate(190%);
+  -webkit-backdrop-filter: blur(26px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 8px 32px rgba(30, 64, 140, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* 顶栏（菜单栏）：通栏玻璃，仅下缘发丝线 */
+.glass-bar {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.26));
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 4px 24px rgba(30, 64, 140, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 记录卡片：更透的玻璃 + 悬浮反馈 */
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.40), rgba(255, 255, 255, 0.16));
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.50);
+  box-shadow:
+    0 4px 18px rgba(30, 64, 140, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.28));
+  box-shadow:
+    0 14px 36px rgba(30, 64, 140, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 置顶卡片：蓝色透玻璃 + 蓝色左侧标 */
+.glass-card-pinned {
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.28), rgba(33, 150, 243, 0.10));
+  border-color: rgba(255, 255, 255, 0.45);
+  border-left: 3px solid rgba(33, 150, 243, 0.65);
+}
+
+.glass-card-pinned:hover {
+  background: linear-gradient(135deg, rgba(33, 150, 243, 0.36), rgba(33, 150, 243, 0.16));
+}
+
+/* 下拉菜单：高模糊保证可读性 */
+.glass-menu {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.80), rgba(255, 255, 255, 0.62));
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 16px 48px rgba(30, 64, 140, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* iOS 风格确认弹窗 */
+.glass-dialog {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 28px 72px rgba(30, 64, 140, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* ---- 自定义滚动条（玻璃质感） ---- */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -29,17 +125,17 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #BDBDBD;
+  background: rgba(255, 255, 255, 0.45);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9E9E9E;
+  background: rgba(255, 255, 255, 0.7);
 }
 
 /* ---- 卡片闪烁动画（复制反馈） ---- */
 @keyframes flash-primary {
-  0%   { background-color: #90CAF9; }
+  0%   { background-color: rgba(59, 130, 246, 0.30); }
   100% { background-color: transparent; }
 }
 
@@ -47,9 +143,8 @@ html, body, #root {
   animation: flash-primary 300ms ease-out;
 }
 
-/* 置顶卡片的闪光动画使用 primary-200 → transparent 避免背景色跳变 */
 @keyframes flash-pinned {
-  0%   { background-color: #90CAF9; }
+  0%   { background-color: rgba(59, 130, 246, 0.30); }
   100% { background-color: transparent; }
 }
 
@@ -59,12 +154,22 @@ html, body, #root {
 
 /* ---- 过渡动画 ---- */
 @keyframes slide-down {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .animate-slide-down {
-  animation: slide-down 200ms ease-out;
+  animation: slide-down 220ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+/* iOS 弹窗缩放入场 */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-pop-in {
+  animation: pop-in 200ms cubic-bezier(0.34, 1.3, 0.64, 1);
 }
 
 /* ---- 文本截断 ---- */

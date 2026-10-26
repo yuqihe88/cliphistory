@@ -31,9 +31,9 @@ export default function SearchBar({ value, onChange }: Props) {
         <input
           ref={inputRef}
           type="text"
-          className="w-full h-10 pl-9 pr-9 rounded-lg border border-neutral-200 bg-white text-body text-neutral-800
-                     placeholder-neutral-400 outline-none transition-colors
-                     focus:border-primary-400 focus:ring-1 focus:ring-primary-400"
+          className="glass w-full h-10 pl-9 pr-9 rounded-2xl text-body text-neutral-800
+                     placeholder-neutral-400 outline-none transition-all duration-200
+                     focus:border-primary-300/70 focus:ring-2 focus:ring-primary-300/40"
           placeholder="搜索历史记录..."
           value={value}
           onChange={(e) => onChange(e.target.value)}

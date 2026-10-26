@@ -2,15 +2,65 @@
 // ClipHistory — Electron 主进程入口
 // ============================================================
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, dialog, shell, protocol } from 'electron';
 import path from 'path';
-import { initDatabase, getHistory, searchHistory, setPinned, deleteRecord, getRecordById, getSettings, saveSettings, cleanupOldRecords, clearAll, closeDatabase } from './database';
-import { startClipboardMonitor, stopClipboardMonitor, writeToClipboard, setOnNewClip } from './clipboard';
+import fs from 'fs';
+import { initDatabase, getHistory, searchHistory, setPinned, deleteRecord, getRecordById, getSettings, saveSettings, cleanupOldRecords, clearAll, closeDatabase, imagesDir, getPrompts, getPromptById, addPrompt, updatePrompt, deletePrompt, enforceRecordCap } from './database';
+import { startClipboardMonitor, stopClipboardMonitor, writeToClipboard, writeTextWithoutCapture, setOnNewClip } from './clipboard';
+import { syncOwnerTracker, stopOwnerTrackerOnQuit } from './clipboard-owner';
 import { createTray, destroyTray, showTrayNotification } from './tray';
 import { registerGlobalShortcut, unregisterAllShortcuts } from './shortcut';
 import { syncAutoLaunch } from './auto-launch';
+import { setFloatMode, handleMainWindowMoved, registerDockIpc, hideDockIfVisible } from './dock';
 import { IPC_CHANNELS } from '../shared/types';
-import type { AppSettings, ClipRecord } from '../shared/types';
+import type { AppSettings, ClipRecord, ClipTypeFilter, PromptItem, WindowControlAction, ZoomAction } from '../shared/types';
+
+// ---- 全局异常拦截 ----
+// 桌面工具不允许因单次异常弹崩溃框；记录日志继续运行
+process.on('uncaughtException', (err) => {
+  console.error('[Main] 未捕获异常（已拦截）:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Main] 未处理的 Promise 拒绝（已拦截）:', reason);
+});
+
+// ---- 自定义协议 ----
+// clipimg://local/<encodeURIComponent(绝对路径)> — 让渲染进程（http 页面）能安全加载本地图片
+// 必须在 app ready 之前注册特权 scheme
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'clipimg', privileges: { standard: true, stream: true, supportFetchAPI: true } },
+]);
+
+const IMAGE_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.webp': 'image/webp',
+};
+
+function registerClipImgProtocol(): void {
+  protocol.handle('clipimg', (request) => {
+    try {
+      const url = new URL(request.url);
+      if (url.hostname !== 'local') {
+        return new Response(null, { status: 400 });
+      }
+      const filePath = decodeURIComponent(url.pathname.slice(1));
+      const ext = path.extname(filePath).toLowerCase();
+      if (!IMAGE_MIME[ext] || !fs.existsSync(filePath)) {
+        return new Response(null, { status: 404 });
+      }
+      const data = fs.readFileSync(filePath);
+      return new Response(data, {
+        headers: { 'content-type': IMAGE_MIME[ext] },
+      });
+    } catch {
+      return new Response(null, { status: 500 });
+    }
+  });
+}
 
 // ---- 窗口 ----
 let mainWindow: BrowserWindow | null = null;
@@ -28,13 +78,14 @@ function notifyNewClip(): void {
 // ---- 创建主窗口 ----
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 380,
+    width: 420,
     height: 560,
-    minWidth: 320,
+    minWidth: 360,
     minHeight: 400,
     title: 'ClipHistory',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#DCEBFF',
     show: false, // 先隐藏，ready-to-show 后再显示避免闪烁
+    frame: false, // 无边框：使用自定义菜单栏/标题栏（含窗口控制按钮）
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -85,22 +136,130 @@ function createMainWindow(): BrowserWindow {
   return win;
 }
 
+// ---- 菜单动作 ----
+/** 立即清理过期记录，并通过托盘气泡反馈结果 */
+function cleanupNow(): void {
+  try {
+    const settings = getSettings();
+    const deleted = cleanupOldRecords(settings.retentionDays);
+    showTrayNotification(
+      'ClipHistory',
+      deleted > 0 ? `清理完成：已删除 ${deleted} 条过期记录` : '没有需要清理的过期记录'
+    );
+    notifyNewClip();
+  } catch (err) {
+    console.error('[Menu] 手动清理失败:', err);
+  }
+}
+
+/** 显示"关于"对话框 */
+function showAboutDialog(): void {
+  const options = {
+    type: 'info' as const,
+    title: '关于 ClipHistory',
+    message: 'ClipHistory',
+    detail:
+      `版本 ${app.getVersion()}\n\n` +
+      'Windows 桌面历史粘贴板：自动记录复制的文字、图片和视频，\n' +
+      '支持搜索、置顶、定时清理，数据 100% 本地存储，完全离线。\n\n' +
+      `全局快捷键 Ctrl+Shift+V 可在任意位置显示/隐藏窗口。`,
+    buttons: ['确定'],
+    noLink: true,
+  };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    dialog.showMessageBox(mainWindow, options);
+  } else {
+    dialog.showMessageBox(options);
+  }
+}
+
 // ---- 注册 IPC 处理器 ----
 function registerIpcHandlers(): void {
-  // 获取历史记录
+  // 窗口控制（自定义标题栏按钮）
+  ipcMain.on(IPC_CHANNELS.WINDOW_CONTROL, (_event, action: WindowControlAction) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (action === 'minimize') {
+      mainWindow.minimize();
+    } else if (action === 'maximize') {
+      if (mainWindow.isMaximized()) mainWindow.unmaximize();
+      else mainWindow.maximize();
+    } else if (action === 'close') {
+      // 触发已有的 close 拦截逻辑 → 隐藏到托盘
+      mainWindow.close();
+    }
+  });
+
+  // 打开数据文件夹
+  ipcMain.on(IPC_CHANNELS.OPEN_DATA_FOLDER, () => {
+    shell.openPath(app.getPath('userData'));
+  });
+
+  // 退出应用
+  ipcMain.on(IPC_CHANNELS.QUIT_APP, () => {
+    app.quit();
+  });
+
+  // 重新加载页面
+  ipcMain.on(IPC_CHANNELS.RELOAD, () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.reload();
+  });
+
+  // 开发者工具
+  ipcMain.on(IPC_CHANNELS.TOGGLE_DEVTOOLS, () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.toggleDevTools();
+  });
+
+  // 缩放
+  ipcMain.on(IPC_CHANNELS.ZOOM, (_event, action: ZoomAction) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const wc = mainWindow.webContents;
+    if (action === 'in') wc.setZoomLevel(Math.min(wc.getZoomLevel() + 0.5, 3));
+    else if (action === 'out') wc.setZoomLevel(Math.max(wc.getZoomLevel() - 0.5, -3));
+    else wc.setZoomLevel(0);
+  });
+
+  // 关于对话框
+  ipcMain.on(IPC_CHANNELS.SHOW_ABOUT, () => {
+    showAboutDialog();
+  });
+
+  // ---- 常用提示词（永久保存模块） ----
+  ipcMain.handle(IPC_CHANNELS.PROMPT_GET, (): PromptItem[] => {
+    return getPrompts();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROMPT_ADD, (_event, { content }: { content: string }): PromptItem => {
+    return addPrompt(String(content ?? '').trim());
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROMPT_UPDATE, (_event, { id, content }: { id: number; content: string }): boolean => {
+    return updatePrompt(id, String(content ?? '').trim());
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROMPT_DELETE, (_event, { id }: { id: number }): boolean => {
+    return deletePrompt(id);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.PROMPT_COPY, (_event, { id }: { id: number }): boolean => {
+    const prompt = getPromptById(id);
+    if (!prompt) return false;
+    return writeTextWithoutCapture(prompt.content);
+  });
+
+  // 获取历史记录（支持类型过滤）
   ipcMain.handle(
     IPC_CHANNELS.GET_HISTORY,
-    (_event, { limit = 50, offset = 0 }: { limit?: number; offset?: number }): ClipRecord[] => {
-      return getHistory(limit, offset);
+    (_event, { limit = 50, offset = 0, type = 'all' }: { limit?: number; offset?: number; type?: ClipTypeFilter }): ClipRecord[] => {
+      return getHistory(limit, offset, type);
     }
   );
 
-  // 搜索
+  // 搜索（支持类型过滤）
   ipcMain.handle(
     IPC_CHANNELS.SEARCH,
-    (_event, { keyword }: { keyword: string }): ClipRecord[] => {
-      if (!keyword.trim()) return getHistory();
-      return searchHistory(keyword.trim());
+    (_event, { keyword, type = 'all' }: { keyword: string; type?: ClipTypeFilter }): ClipRecord[] => {
+      if (!keyword.trim()) return getHistory(50, 0, type);
+      return searchHistory(keyword.trim(), type);
     }
   );
 
@@ -131,7 +290,7 @@ function registerIpcHandlers(): void {
   // 拷贝到粘贴板
   ipcMain.handle(
     IPC_CHANNELS.COPY_TO_CLIP,
-    (_event, { id }: { id: number }): boolean => {
+    async (_event, { id }: { id: number }): Promise<boolean> => {
       const record = getRecordById(id);
       if (!record) return false;
       return writeToClipboard(record.type, record.content, record.imagePath);
@@ -158,6 +317,18 @@ function registerIpcHandlers(): void {
         // 如果快捷键变了，重新注册
         if (partial.shortcutKey && mainWindow) {
           registerGlobalShortcut(mainWindow);
+        }
+        // 如果悬浮模式变了，应用置顶/还原
+        if (partial.floatMode !== undefined) {
+          setFloatMode(partial.floatMode, mainWindow);
+        }
+        // 排除应用名单变了，同步归属追踪进程
+        if (partial.excludedApps !== undefined) {
+          syncOwnerTracker(updated.excludedApps);
+        }
+        // 条数上限变了，立即执行一次清理
+        if (partial.maxRecords !== undefined) {
+          enforceRecordCap();
         }
       }
       return result;
@@ -190,32 +361,56 @@ app.on('ready', async () => {
     // 1. 初始化数据库（异步：需要加载 sql.js WASM）
     await initDatabase();
 
-    // 2. 注册 IPC 处理器
+    // 2. 注册 clipimg 协议（渲染进程加载本地图片）
+    registerClipImgProtocol();
+
+    // 3. 注册 IPC 处理器
     registerIpcHandlers();
 
-    // 3. 创建主窗口
+    // 4. 创建主窗口
     mainWindow = createMainWindow();
+    // 悬浮模式：拖近屏幕边缘时缩为小图标（move + moved 双保险，防抖在 dock 模块内）
+    mainWindow.on('moved', () => {
+      if (mainWindow) handleMainWindowMoved(mainWindow);
+    });
+    mainWindow.on('move', () => {
+      if (mainWindow) handleMainWindowMoved(mainWindow);
+    });
 
-    // 4. 创建系统托盘
+    // 4.1 注册图标窗口 IPC
+    registerDockIpc(() => mainWindow);
+
+    // 5. 创建系统托盘
     createTray(mainWindow);
 
-    // 5. 注册全局快捷键
+    // 5. 禁用原生菜单（使用自定义 HTML 菜单栏）
+    Menu.setApplicationMenu(null);
+
+    // 6. 注册全局快捷键
     registerGlobalShortcut(mainWindow);
 
-    // 6. 设置粘贴板监听的回调通知
+    // 6.1 恢复已保存的悬浮模式
+    if (getSettings().floatMode) {
+      setFloatMode(true, mainWindow);
+    }
+
+    // 7. 设置粘贴板监听的回调通知
     setOnNewClip(notifyNewClip);
 
-    // 7. 启动粘贴板监听
+    // 8. 启动粘贴板监听
     startClipboardMonitor();
 
-    // 8. 同步开机自启状态
+    // 9. 同步开机自启状态
     const settings = getSettings();
     syncAutoLaunch(settings.autoLaunch);
 
-    // 9. 应用启动时执行一次清理
+    // 10. 应用启动时执行一次清理（按天 + 按条数上限）
     cleanupOldRecords(settings.retentionDays);
+    enforceRecordCap();
+    // 排除应用名单非空时启动归属追踪
+    syncOwnerTracker(settings.excludedApps);
 
-    // 10. 启动定时清理（每小时检查一次过期记录）
+    // 11. 启动定时清理（每小时检查一次过期记录）
     setInterval(() => {
       try {
         const currentSettings = getSettings();
@@ -243,6 +438,7 @@ app.on('will-quit', () => {
   unregisterAllShortcuts();
   destroyTray();
   closeDatabase();
+  stopOwnerTrackerOnQuit();
 });
 
 // 当所有窗口关闭时（macOS 行为，Windows 不会触发因为关闭=隐藏）
@@ -267,6 +463,7 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => {
     if (mainWindow) {
+      hideDockIfVisible();
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       mainWindow.focus();

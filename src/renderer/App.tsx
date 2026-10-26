@@ -3,21 +3,24 @@
 // ============================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { ClipRecord, AppSettings } from '../shared/types';
-import TitleBar from './components/TitleBar';
+import type { ClipRecord, AppSettings, ClipTypeFilter } from '../shared/types';
+import MenuBar from './components/MenuBar';
+import TypeTabs from './components/TypeTabs';
 import SearchBar from './components/SearchBar';
 import ClipList from './components/ClipList';
 import ConfirmDialog from './components/ConfirmDialog';
 import Settings from './components/Settings';
+import Prompts from './components/Prompts';
 import EmptyState from './components/EmptyState';
 
-type View = 'main' | 'settings';
+type View = 'main' | 'settings' | 'prompts';
 
 export default function App() {
   const [view, setView] = useState<View>('main');
   const [records, setRecords] = useState<ClipRecord[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const [activeType, setActiveType] = useState<ClipTypeFilter>('all');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -45,11 +48,9 @@ export default function App() {
   // ---- 加载数据 ----
   const loadHistory = useCallback(async () => {
     try {
-      console.log('[Renderer] loadHistory 开始, API 存在:', !!window.clipHistory);
       const data = debouncedKeyword
-        ? await window.clipHistory.search(debouncedKeyword)
-        : await window.clipHistory.getHistory();
-      console.log('[Renderer] loadHistory 完成, 记录数:', data.length);
+        ? await window.clipHistory.search(debouncedKeyword, activeType)
+        : await window.clipHistory.getHistory(50, 0, activeType);
       setRecords(data);
       setLoading(false);
     } catch (err) {
@@ -57,7 +58,7 @@ export default function App() {
       setActionError('加载历史记录失败，请重启应用');
       setLoading(false);
     }
-  }, [debouncedKeyword]);
+  }, [debouncedKeyword, activeType]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -180,12 +181,44 @@ export default function App() {
 
   // ---- 渲染 ----
   return (
-    <div className="flex flex-col h-full bg-primary-50">
-      {/* 标题栏 */}
-      <TitleBar
-        onSettingsClick={() => setView(view === 'main' ? 'settings' : 'main')}
+    <div className="flex flex-col h-full">
+      {/* 自定义菜单栏（无边框窗口标题行） */}
+      <MenuBar
         isSettings={view === 'settings'}
+        onSettingsToggle={() => setView(view === 'settings' ? 'main' : 'settings')}
+        onAfterCleanup={loadHistory}
+        floatMode={settings?.floatMode ?? false}
+        onToggleFloat={() => {
+          if (settings) handleSaveSettings({ floatMode: !settings.floatMode });
+        }}
+        paused={settings?.paused ?? false}
+        onTogglePaused={() => {
+          if (settings) handleSaveSettings({ paused: !settings.paused });
+        }}
       />
+
+      {(view === 'main' || view === 'prompts') && (
+        <>
+          {/* 类型分区 + 提示词入口（同一行） */}
+          <TypeTabs
+            value={activeType}
+            onChange={(v) => {
+              setActiveType(v);
+              setView('main');
+            }}
+            promptsActive={view === 'prompts'}
+            onPrompts={() => setView(view === 'prompts' ? 'main' : 'prompts')}
+          />
+
+          {/* 暂停记录横幅 */}
+          {settings?.paused && (
+            <div className="mx-3 mt-2 px-3 py-1.5 rounded-xl bg-danger/10 border border-danger/30
+                            text-caption text-danger text-center">
+              记录已暂停 — 新的复制内容不会被保存（设置中可恢复）
+            </div>
+          )}
+        </>
+      )}
 
       {view === 'main' ? (
         <>
@@ -197,7 +230,7 @@ export default function App() {
 
           {/* 错误提示 */}
           {actionError && (
-            <div className="mx-3 mt-2 px-3 py-2 bg-danger/10 border border-danger/30 rounded-lg text-caption text-danger text-center">
+            <div className="glass mx-3 mt-2 px-3 py-2 rounded-xl text-caption text-danger text-center animate-slide-down">
               {actionError}
             </div>
           )}
@@ -222,6 +255,9 @@ export default function App() {
             )}
           </div>
         </>
+      ) : view === 'prompts' ? (
+        /* 常用提示词页面 */
+        <Prompts />
       ) : (
         /* 设置页面 */
         settings && (

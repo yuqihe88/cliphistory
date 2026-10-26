@@ -31,17 +31,16 @@ function truncate(text: string, maxLen = 100): string {
 
 export default function ClipCard({ record, isCopied, onCopy, onPin, onDelete }: Props) {
   const isText = record.type === 'text';
+  const isVideo = record.type === 'video';
+
+  /** 从路径中取文件名（渲染进程不能用 node path 模块） */
+  const fileName = (p: string): string => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 
   return (
     <div
       className={`
-        group relative flex rounded-lg px-3 py-3 gap-2 cursor-pointer shrink-0
-        shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.12)]
-        transition-all duration-200
-        ${record.isPinned
-          ? 'bg-primary-100 border-l-[3px] border-l-primary-500'
-          : 'bg-white'
-        }
+        glass-card group relative flex rounded-2xl px-3 py-3 gap-2 cursor-pointer shrink-0
+        ${record.isPinned ? 'glass-card-pinned' : ''}
         ${isCopied ? (record.isPinned ? 'card-flash-pinned' : 'card-flash') : ''}
       `}
       onClick={() => onCopy(record)}
@@ -72,13 +71,29 @@ export default function ClipCard({ record, isCopied, onCopy, onPin, onDelete }: 
           <p className="text-body text-neutral-800 line-clamp-2 break-all">
             {truncate(record.content ?? '')}
           </p>
+        ) : isVideo ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="shrink-0 w-8 h-8 rounded-xl bg-primary-500/15 border border-white/50 flex items-center justify-center">
+              <svg className="w-4 h-4 text-primary-500" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 6h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm15 3.5 3.4-2.55a.6.6 0 0 1 .96.48v7.14a.6.6 0 0 1-.96.48L19 12.5v-3z" />
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <p className="text-body text-neutral-800 truncate">
+                {record.content ? fileName(record.content) : '视频'}
+              </p>
+              <p className="text-caption text-neutral-400 truncate">
+                {record.content ?? ''}
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             {record.imagePath ? (
               <img
-                src={`file://${record.imagePath}`}
+                src={`clipimg://local/${encodeURIComponent(record.imagePath)}`}
                 alt="粘贴板图片"
-                className="h-[60px] rounded object-cover"
+                className="h-[60px] rounded-lg object-cover border border-white/60"
                 style={{ maxWidth: '100%' }}
               />
             ) : (

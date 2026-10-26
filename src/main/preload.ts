@@ -20,15 +20,32 @@ const IPC = {
   CLEAR_ALL:      'clipboard:clear-all',
   ON_NEW_CLIP:    'clipboard:on-new-clip',
   ON_SETTINGS_CHANGED: 'settings:on-changed',
+  WINDOW_CONTROL:      'app:window-control',
+  OPEN_DATA_FOLDER:    'app:open-data-folder',
+  QUIT_APP:            'app:quit',
+  RELOAD:              'app:reload',
+  TOGGLE_DEVTOOLS:     'app:toggle-devtools',
+  ZOOM:                'app:zoom',
+  SHOW_ABOUT:          'app:show-about',
+  PROMPT_GET:          'prompt:get',
+  PROMPT_ADD:          'prompt:add',
+  PROMPT_UPDATE:       'prompt:update',
+  PROMPT_DELETE:       'prompt:delete',
+  PROMPT_COPY:         'prompt:copy',
+  DOCK_RESTORE:        'app:dock-restore',
+  DOCK_MENU:           'app:dock-menu',
+  DOCK_DRAG_START:     'app:dock-drag-start',
+  DOCK_DRAG_MOVE:      'app:dock-drag-move',
+  DOCK_DRAG_END:       'app:dock-drag-end',
 } as const;
 
 // ---- 暴露给渲染进程的安全 API ----
 contextBridge.exposeInMainWorld('clipHistory', {
-  getHistory: (limit = 50, offset = 0) =>
-    ipcRenderer.invoke(IPC.GET_HISTORY, { limit, offset }),
+  getHistory: (limit = 50, offset = 0, type = 'all') =>
+    ipcRenderer.invoke(IPC.GET_HISTORY, { limit, offset, type }),
 
-  search: (keyword: string) =>
-    ipcRenderer.invoke(IPC.SEARCH, { keyword }),
+  search: (keyword: string, type = 'all') =>
+    ipcRenderer.invoke(IPC.SEARCH, { keyword, type }),
 
   pin: (id: number) =>
     ipcRenderer.invoke(IPC.PIN, { id }),
@@ -69,4 +86,58 @@ contextBridge.exposeInMainWorld('clipHistory', {
       ipcRenderer.removeListener(IPC.ON_SETTINGS_CHANGED, handler);
     };
   },
+
+  // ---- 应用控制（自定义无边框标题栏 / 菜单栏） ----
+  windowControl: (action: string) =>
+    ipcRenderer.send(IPC.WINDOW_CONTROL, action),
+
+  openDataFolder: () =>
+    ipcRenderer.send(IPC.OPEN_DATA_FOLDER),
+
+  quitApp: () =>
+    ipcRenderer.send(IPC.QUIT_APP),
+
+  reloadApp: () =>
+    ipcRenderer.send(IPC.RELOAD),
+
+  toggleDevTools: () =>
+    ipcRenderer.send(IPC.TOGGLE_DEVTOOLS),
+
+  zoom: (action: string) =>
+    ipcRenderer.send(IPC.ZOOM, action),
+
+  showAbout: () =>
+    ipcRenderer.send(IPC.SHOW_ABOUT),
+
+  // ---- 常用提示词（永久保存模块） ----
+  getPrompts: () =>
+    ipcRenderer.invoke(IPC.PROMPT_GET),
+
+  addPrompt: (content: string) =>
+    ipcRenderer.invoke(IPC.PROMPT_ADD, { content }),
+
+  updatePrompt: (id: number, content: string) =>
+    ipcRenderer.invoke(IPC.PROMPT_UPDATE, { id, content }),
+
+  deletePrompt: (id: number) =>
+    ipcRenderer.invoke(IPC.PROMPT_DELETE, { id }),
+
+  copyPrompt: (id: number) =>
+    ipcRenderer.invoke(IPC.PROMPT_COPY, { id }),
+
+  // ---- 悬浮桌面模式（贴边小图标窗口） ----
+  dockRestore: () =>
+    ipcRenderer.send(IPC.DOCK_RESTORE),
+
+  dockMenu: () =>
+    ipcRenderer.send(IPC.DOCK_MENU),
+
+  dockDragStart: (point: { x: number; y: number }) =>
+    ipcRenderer.send(IPC.DOCK_DRAG_START, point),
+
+  dockDragMove: (point: { x: number; y: number }) =>
+    ipcRenderer.send(IPC.DOCK_DRAG_MOVE, point),
+
+  dockDragEnd: (info: { moved: boolean }) =>
+    ipcRenderer.send(IPC.DOCK_DRAG_END, info),
 });

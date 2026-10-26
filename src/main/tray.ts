@@ -4,6 +4,7 @@
 
 import { Tray, Menu, nativeImage, BrowserWindow, app, NativeImage } from 'electron';
 import path from 'path';
+import { hideDockIfVisible } from './dock';
 
 let tray: Tray | null = null;
 
@@ -32,6 +33,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
     {
       label: '显示主窗口',
       click: () => {
+        hideDockIfVisible();
         mainWindow.show();
         mainWindow.focus();
       },
@@ -50,6 +52,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
 
   // 双击托盘图标显示主窗口
   tray.on('double-click', () => {
+    hideDockIfVisible();
     mainWindow.show();
     mainWindow.focus();
   });

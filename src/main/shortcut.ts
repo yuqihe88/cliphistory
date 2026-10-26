@@ -4,6 +4,7 @@
 
 import { globalShortcut, BrowserWindow } from 'electron';
 import { getSettings } from './database';
+import { hideDockIfVisible } from './dock';
 
 let registeredKey: string | null = null;
 
@@ -24,6 +25,7 @@ export function registerGlobalShortcut(mainWindow: BrowserWindow): boolean {
     if (mainWindow.isVisible()) {
       mainWindow.hide();
     } else {
+      hideDockIfVisible();
       mainWindow.show();
       mainWindow.focus();
     }
