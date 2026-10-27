@@ -167,7 +167,7 @@ export default function Settings({ settings, onSave, onClearAll }: Props) {
         <h3 className="text-body font-semibold text-neutral-800 mb-3">悬浮桌面</h3>
         <div className="bg-white/55 rounded-xl px-4 py-3">
           <div className="flex items-center justify-between">
-            <span className="text-body text-neutral-800">悬浮桌面（窗口置顶）</span>
+            <span className="text-body text-neutral-800">悬浮桌面（贴边收缩）</span>
             <button
               className={`
                 relative w-11 h-6 rounded-full transition-colors duration-200 shadow-inner
@@ -185,7 +185,7 @@ export default function Settings({ settings, onSave, onClearAll }: Props) {
             </button>
           </div>
           <p className="text-caption text-neutral-400 mt-1.5">
-            开启后窗口置顶悬浮，拖到屏幕左/右边缘会缩成小图标，点击图标还原
+            开启后拖动窗口到屏幕左/右边缘会缩成小图标，点击图标还原；窗口不会置顶
           </p>
         </div>
       </section>

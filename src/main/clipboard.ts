@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { execFile } from 'child_process';
 import { insertRecord, imagesDir, getSettings } from './database';
 import { getClipboardOwnerName } from './clipboard-owner';
+import type { ProjectItem } from '../shared/types';
 
 // ---- 状态 ----
 let pollingTimer: ReturnType<typeof setInterval> | null = null;
@@ -246,6 +247,32 @@ export function writeTextWithoutCapture(text: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** 项目素材复制：文本/图片可直接粘贴，视频/文件写入真实文件剪贴板。 */
+export async function writeProjectItemToClipboard(item: ProjectItem): Promise<boolean> {
+  if (item.type === 'text') return item.content !== null && writeTextWithoutCapture(item.content);
+  if (!item.filePath || !fs.existsSync(item.filePath)) return false;
+  if (item.type === 'image') {
+    const image = nativeImage.createFromPath(item.filePath);
+    if (image.isEmpty()) return false;
+    clipboard.writeImage(image);
+    // 与监听器使用相同的缩放/压缩，避免复制素材又生成一条历史记录。
+    const size = image.getSize();
+    const scale = Math.min(1, 1920 / Math.max(size.width, size.height));
+    const captured = scale < 1
+      ? image.resize({ width: Math.round(size.width * scale), height: Math.round(size.height * scale) })
+      : image;
+    lastImageHash = hashBuffer(captured.toJPEG(80));
+    lastTextHash = hashString(clipboard.readText());
+    return true;
+  }
+  const ok = await writeFileToClipboard(item.filePath);
+  if (ok) {
+    lastVideoPath = item.filePath;
+    lastTextHash = hashString(clipboard.readText());
+  }
+  return ok;
 }
 
 /** 将记录内容写回系统粘贴板 */

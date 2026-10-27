@@ -195,3 +195,17 @@ export const IPC_CHANNELS = {
 - 禁用 `nodeIntegration: false`
 - 使用 `preload.ts` 通过 `contextBridge` 暴露安全的 API
 - 图片文件保存在应用专属目录，不访问用户其他文件
+
+## 7. 项目素材（2026-10-26）
+
+- `projects` 表保存项目名称与时间；`project_items` 表保存所属项目、类型、标题、文字内容或文件路径、原文件名、大小与时间。
+- 所有 CRUD 在 `database.ts`，不参与 `clipboard_history` 的清理。项目变更持久化失败时恢复内存快照；数据库以同目录临时文件原子替换。
+- 用户选择的文件异步复制到 `userData/project-files/<UUID>/<原文件名>`；多选导入返回 `{ items, failed }`，逐项反馈。历史收藏同样复制文件。
+- 删除先持久化记录变更，再移除受管副本；文件清理校验目录边界和真实路径。源文件不会被删除。
+- IPC 通道：`project:get/create/rename/delete/items/add-text/update-text/import/save-history/item-delete/item-copy/item-reveal`，统一在 `IPC_CHANNELS` 和沙箱 preload 中声明。
+- `project:import` 由主进程打开多选文件对话框，渲染进程不直接访问文件系统。`item-copy` 按类型写入文字、图片或 Windows CF_HDROP；文件复制失败直接返回 false。
+- `Projects.tsx` 管理项目选择、编辑、搜索与素材操作；文本编辑仅正文，存储层兼容旧标题元数据，界面不展示文本标题。卡片点击及 Enter/空格调用复制 API，内部操作按钮阻止触发卡片复制。
+- `SaveToProjectDialog.tsx` 供历史和项目素材选择移动/复制与目标项目，均通过 `window.clipHistory` 调用。独立 `Prompts.tsx` 页面与导航已移除。
+- `project:transfer` 接收 `{ source: { kind: 'history' | 'project' | 'prompt', id }, targetProjectId, mode: 'copy' | 'move' }`，返回目标 `ProjectItem`。移动来源删除与目标插入在同次数据库持久化中完成；历史图片在持久化成功后清理受管副本，外部源文件不删除。
+- 项目间移动仅更新归属及双方时间，保留 ID/文件路径；复制文件异步生成独立副本，提交前重新校验来源和目标。存储失败回滚、清理未提交副本。
+- 数据库初始化迁移旧 `prompts` 至 `project_items`，复用 `changeProjects` 确保目标插入、来源删除及迁移标记原子保存。标记项目 ID 保存在 `app_settings`；命名冲突时使用独立备用名称，迁移保留正文和时间。旧提示词 CRUD/IPC 仅保留兼容，不再提供页面入口。

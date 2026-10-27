@@ -13,7 +13,9 @@ import { registerGlobalShortcut, unregisterAllShortcuts } from './shortcut';
 import { syncAutoLaunch } from './auto-launch';
 import { setFloatMode, handleMainWindowMoved, registerDockIpc, hideDockIfVisible } from './dock';
 import { IPC_CHANNELS } from '../shared/types';
-import type { AppSettings, ClipRecord, ClipTypeFilter, PromptItem, WindowControlAction, ZoomAction } from '../shared/types';
+import { getProjects, createProject, renameProject, deleteProject, getProjectItems, getProjectItemById, addProjectText, updateProjectText, importProjectFiles, saveHistoryToProject, transferToProject, deleteProjectItem } from './database';
+import { writeProjectItemToClipboard } from './clipboard';
+import type { AppSettings, ClipRecord, ClipTypeFilter, PromptItem, WindowControlAction, ZoomAction, ProjectTransferSource, ProjectTransferMode } from '../shared/types';
 
 // ---- 全局异常拦截 ----
 // 桌面工具不允许因单次异常弹崩溃框；记录日志继续运行
@@ -94,8 +96,8 @@ function createMainWindow(): BrowserWindow {
   });
 
   // 加载渲染进程
-  // 生产模式：NODE_ENV=production 且没有指定 Vite URL
-  if (process.env.NODE_ENV === 'production' && !process.env.VITE_DEV_SERVER_URL) {
+  // 打包程序默认加载随包页面；仅显式指定 Vite URL 时使用开发服务器。
+  if ((app.isPackaged || process.env.NODE_ENV === 'production') && !process.env.VITE_DEV_SERVER_URL) {
     // 生产模式：加载构建后的文件
     win.loadFile(path.join(__dirname, '../../renderer/index.html'));
   } else {
@@ -246,6 +248,53 @@ function registerIpcHandlers(): void {
     return writeTextWithoutCapture(prompt.content);
   });
 
+  // ---- 项目素材（永久保存模块） ----
+  ipcMain.handle(IPC_CHANNELS.PROJECT_GET, () => getProjects());
+  ipcMain.handle(IPC_CHANNELS.PROJECT_CREATE, (_event, { name }: { name: string }) => createProject(name));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_RENAME, (_event, { id, name }: { id: number; name: string }) => renameProject(id, name));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_DELETE, (_event, { id }: { id: number }) => deleteProject(id));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_ITEMS, (_event, { projectId }: { projectId: number }) => getProjectItems(projectId));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_ADD_TEXT, (_event, { projectId, title, content }: { projectId: number; title: string; content: string }) =>
+    addProjectText(projectId, title, content));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_UPDATE_TEXT, (_event, { id, title, content }: { id: number; title: string; content: string }) =>
+    updateProjectText(id, title, content));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_IMPORT, async (_event, { projectId }: { projectId: number }) => {
+    if (!getProjects().some((project) => project.id === projectId)) throw new Error('项目不存在，请重新选择');
+    const options: Electron.OpenDialogOptions = {
+      title: '导入项目素材',
+      buttonLabel: '保存到项目',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: '所有文件', extensions: ['*'] },
+        { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] },
+        { name: '视频', extensions: ['mp4', 'mov', 'mkv', 'avi', 'webm'] },
+      ],
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled) return { items: [], failed: [] };
+    return importProjectFiles(projectId, result.filePaths);
+  });
+  ipcMain.handle(IPC_CHANNELS.PROJECT_SAVE_HISTORY, (_event, { projectId, recordId }: { projectId: number; recordId: number }) =>
+    saveHistoryToProject(projectId, recordId));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_TRANSFER, async (_event, { source, targetProjectId, mode }: { source: ProjectTransferSource; targetProjectId: number; mode: ProjectTransferMode }) => {
+    const item = await transferToProject(source, targetProjectId, mode);
+    if (source.kind === 'history' && mode === 'move') notifyNewClip();
+    return item;
+  });
+  ipcMain.handle(IPC_CHANNELS.PROJECT_ITEM_DELETE, (_event, { id }: { id: number }) => deleteProjectItem(id));
+  ipcMain.handle(IPC_CHANNELS.PROJECT_ITEM_COPY, (_event, { id }: { id: number }) => {
+    const item = getProjectItemById(id);
+    return item ? writeProjectItemToClipboard(item) : false;
+  });
+  ipcMain.handle(IPC_CHANNELS.PROJECT_ITEM_REVEAL, (_event, { id }: { id: number }) => {
+    const item = getProjectItemById(id);
+    if (!item?.filePath || !fs.existsSync(item.filePath)) return false;
+    shell.showItemInFolder(item.filePath);
+    return true;
+  });
+
   // 获取历史记录（支持类型过滤）
   ipcMain.handle(
     IPC_CHANNELS.GET_HISTORY,
@@ -318,7 +367,7 @@ function registerIpcHandlers(): void {
         if (partial.shortcutKey && mainWindow) {
           registerGlobalShortcut(mainWindow);
         }
-        // 如果悬浮模式变了，应用置顶/还原
+        // 如果悬浮模式变了，开启/关闭贴边收缩
         if (partial.floatMode !== undefined) {
           setFloatMode(partial.floatMode, mainWindow);
         }

@@ -1,6 +1,6 @@
 // ============================================================
 // ClipHistory — 悬浮桌面模式（贴边缩为小图标）
-// 主窗口开启悬浮后置顶显示；拖近屏幕左/右边缘时自动隐藏，
+// 主窗口开启悬浮后可贴边收缩（不置顶）；拖近屏幕左/右边缘时自动隐藏，
 // 并在边缘显示一个置顶小图标，点击还原、右键弹出菜单。
 // ============================================================
 
@@ -32,12 +32,10 @@ export function isDockVisible(): boolean {
   return dockVisible;
 }
 
-/** 悬浮模式开关：开启时主窗口置顶；关闭时取消置顶并还原 */
+/** 悬浮模式开关：开启后主窗口可贴边收缩（不置顶）；关闭时取消可能残留的置顶并还原 */
 export function setFloatMode(enabled: boolean, mainWindow: BrowserWindow): void {
   isFloatMode = enabled;
-  if (enabled) {
-    mainWindow.setAlwaysOnTop(true, 'floating');
-  } else {
+  if (!enabled) {
     mainWindow.setAlwaysOnTop(false);
     if (dockVisible) restoreFromDock(mainWindow);
   }

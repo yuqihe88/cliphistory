@@ -10,10 +10,11 @@ import SearchBar from './components/SearchBar';
 import ClipList from './components/ClipList';
 import ConfirmDialog from './components/ConfirmDialog';
 import Settings from './components/Settings';
-import Prompts from './components/Prompts';
 import EmptyState from './components/EmptyState';
+import Projects from './components/Projects';
+import SaveToProjectDialog from './components/SaveToProjectDialog';
 
-type View = 'main' | 'settings' | 'prompts';
+type View = 'main' | 'settings' | 'projects';
 
 export default function App() {
   const [view, setView] = useState<View>('main');
@@ -24,6 +25,8 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [saveTarget, setSaveTarget] = useState<ClipRecord | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
 
   // 删除确认弹窗
   const [deleteTarget, setDeleteTarget] = useState<ClipRecord | null>(null);
@@ -197,21 +200,21 @@ export default function App() {
         }}
       />
 
-      {(view === 'main' || view === 'prompts') && (
+      {view !== 'settings' && (
         <>
-          {/* 类型分区 + 提示词入口（同一行） */}
+          {/* 历史类型分区 + 项目入口 */}
           <TypeTabs
             value={activeType}
             onChange={(v) => {
               setActiveType(v);
               setView('main');
             }}
-            promptsActive={view === 'prompts'}
-            onPrompts={() => setView(view === 'prompts' ? 'main' : 'prompts')}
+            projectsActive={view === 'projects'}
+            onProjects={() => setView('projects')}
           />
 
           {/* 暂停记录横幅 */}
-          {settings?.paused && (
+          {settings?.paused && view !== 'projects' && (
             <div className="mx-3 mt-2 px-3 py-1.5 rounded-xl bg-danger/10 border border-danger/30
                             text-caption text-danger text-center">
               记录已暂停 — 新的复制内容不会被保存（设置中可恢复）
@@ -250,14 +253,14 @@ export default function App() {
                 onCopy={handleCopy}
                 onPin={handlePin}
                 onDelete={handleDeleteClick}
+                onSaveToProject={setSaveTarget}
                 containerRef={listContainerRef}
               />
             )}
           </div>
         </>
-      ) : view === 'prompts' ? (
-        /* 常用提示词页面 */
-        <Prompts />
+      ) : view === 'projects' ? (
+        <Projects initialProjectId={selectedProjectId} />
       ) : (
         /* 设置页面 */
         settings && (
@@ -267,6 +270,24 @@ export default function App() {
             onClearAll={() => setShowClearAll(true)}
           />
         )
+      )}
+
+      {/* 删除确认弹窗 */}
+      {saveTarget && (
+        <SaveToProjectDialog
+          source={{ kind: 'history', id: saveTarget.id }}
+          summary={saveTarget.type === 'text'
+            ? saveTarget.content ?? ''
+            : (saveTarget.imagePath ?? saveTarget.content ?? '').split(/[\\/]/).pop() || '文件素材'}
+          onClose={() => setSaveTarget(null)}
+          onSaved={(projectId, mode) => {
+            if (mode === 'move') setRecords((current) => current.filter((record) => record.id !== saveTarget.id));
+            setSaveTarget(null);
+            setSelectedProjectId(projectId);
+            setView('projects');
+            void loadHistory();
+          }}
+        />
       )}
 
       {/* 删除确认弹窗 */}

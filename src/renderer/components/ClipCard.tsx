@@ -11,6 +11,7 @@ interface Props {
   onCopy: (record: ClipRecord) => void;
   onPin: (record: ClipRecord) => void;
   onDelete: (record: ClipRecord) => void;
+  onSaveToProject: (record: ClipRecord) => void;
 }
 
 function formatTime(isoStr: string): string {
@@ -29,7 +30,7 @@ function truncate(text: string, maxLen = 100): string {
   return text.slice(0, maxLen) + '...';
 }
 
-export default function ClipCard({ record, isCopied, onCopy, onPin, onDelete }: Props) {
+export default function ClipCard({ record, isCopied, onCopy, onPin, onDelete, onSaveToProject }: Props) {
   const isText = record.type === 'text';
   const isVideo = record.type === 'video';
 
@@ -119,6 +120,21 @@ export default function ClipCard({ record, isCopied, onCopy, onPin, onDelete }: 
           {formatTime(record.createdAt)}
         </p>
       </div>
+
+      {/* 删除按钮 */}
+      <button
+        className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-primary-700 hover:bg-primary-100/70 focus-visible:ring-2 focus-visible:ring-primary-500"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSaveToProject(record);
+        }}
+        title="移动或复制到项目"
+        aria-label="移动或复制到项目"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8 14h8m-3-3 3 3-3 3" />
+        </svg>
+      </button>
 
       {/* 删除按钮 */}
       <button

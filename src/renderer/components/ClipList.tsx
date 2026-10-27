@@ -12,10 +12,11 @@ interface Props {
   onCopy: (record: ClipRecord) => void;
   onPin: (record: ClipRecord) => void;
   onDelete: (record: ClipRecord) => void;
+  onSaveToProject: (record: ClipRecord) => void;
   containerRef?: React.RefObject<HTMLDivElement>;
 }
 
-export default function ClipList({ records, copiedId, onCopy, onPin, onDelete, containerRef }: Props) {
+export default function ClipList({ records, copiedId, onCopy, onPin, onDelete, onSaveToProject, containerRef }: Props) {
   const listRef = containerRef || useRef<HTMLDivElement>(null);
 
   return (
@@ -31,6 +32,7 @@ export default function ClipList({ records, copiedId, onCopy, onPin, onDelete, c
           onCopy={onCopy}
           onPin={onPin}
           onDelete={onDelete}
+          onSaveToProject={onSaveToProject}
         />
       ))}
     </div>

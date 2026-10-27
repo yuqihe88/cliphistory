@@ -25,7 +25,7 @@ export interface AppSettings {
   retentionDays: 1 | 3 | 5;     // 保留天数
   autoLaunch: boolean;           // 开机自启
   shortcutKey: string;           // 快捷键，默认 'Ctrl+Shift+V'
-  floatMode: boolean;            // 悬浮桌面模式（置顶 + 贴边缩为图标）
+  floatMode: boolean;            // 悬浮桌面模式（拖到屏幕边缘缩为小图标，不置顶）
   paused: boolean;               // 暂停记录（临时隐私模式）
   excludedApps: string[];        // 排除应用名单（进程名，来自这些应用的内容不记录）
   maxRecords: number;            // 最大记录条数（0 = 不限制），超出自动删除最旧的未置顶记录
@@ -70,6 +70,19 @@ export const IPC_CHANNELS = {
   PROMPT_UPDATE:    'prompt:update',
   PROMPT_DELETE:    'prompt:delete',
   PROMPT_COPY:      'prompt:copy',
+  PROJECT_GET:         'project:get',
+  PROJECT_CREATE:      'project:create',
+  PROJECT_RENAME:      'project:rename',
+  PROJECT_DELETE:      'project:delete',
+  PROJECT_ITEMS:       'project:items',
+  PROJECT_ADD_TEXT:    'project:add-text',
+  PROJECT_UPDATE_TEXT: 'project:update-text',
+  PROJECT_IMPORT:      'project:import',
+  PROJECT_SAVE_HISTORY: 'project:save-history',
+  PROJECT_TRANSFER:    'project:transfer',
+  PROJECT_ITEM_DELETE: 'project:item-delete',
+  PROJECT_ITEM_COPY:   'project:item-copy',
+  PROJECT_ITEM_REVEAL: 'project:item-reveal',
   // 悬浮桌面模式（贴边小图标窗口）
   DOCK_RESTORE:     'app:dock-restore',        // 图标点击 → 还原主窗口
   DOCK_MENU:        'app:dock-menu',           // 图标右键 → 弹出菜单
@@ -84,6 +97,41 @@ export interface PromptItem {
   content: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 项目素材独立于剪贴板历史，永久保存，仅手动删除。 */
+export interface Project {
+  id: number;
+  name: string;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProjectItemType = 'text' | 'image' | 'video' | 'file';
+
+export interface ProjectItem {
+  id: number;
+  projectId: number;
+  type: ProjectItemType;
+  title: string;
+  content: string | null;
+  filePath: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectImportResult {
+  items: ProjectItem[];
+  failed: string[];
+}
+
+export type ProjectTransferMode = 'copy' | 'move';
+export interface ProjectTransferSource {
+  kind: 'history' | 'project' | 'prompt';
+  id: number;
 }
 
 /** 窗口控制动作 */
@@ -148,6 +196,19 @@ export interface ClipHistoryApi {
   updatePrompt: (id: number, content: string) => Promise<boolean>;
   deletePrompt: (id: number) => Promise<boolean>;
   copyPrompt: (id: number) => Promise<boolean>;
+  getProjects: () => Promise<Project[]>;
+  createProject: (name: string) => Promise<Project>;
+  renameProject: (id: number, name: string) => Promise<boolean>;
+  deleteProject: (id: number) => Promise<boolean>;
+  getProjectItems: (projectId: number) => Promise<ProjectItem[]>;
+  addProjectText: (projectId: number, title: string, content: string) => Promise<ProjectItem>;
+  updateProjectText: (id: number, title: string, content: string) => Promise<boolean>;
+  importProjectFiles: (projectId: number) => Promise<ProjectImportResult>;
+  saveHistoryToProject: (projectId: number, recordId: number) => Promise<ProjectItem>;
+  transferToProject: (source: ProjectTransferSource, targetProjectId: number, mode: ProjectTransferMode) => Promise<ProjectItem>;
+  deleteProjectItem: (id: number) => Promise<boolean>;
+  copyProjectItem: (id: number) => Promise<boolean>;
+  revealProjectItem: (id: number) => Promise<boolean>;
   // 悬浮桌面模式（贴边小图标窗口）
   dockRestore: () => void;
   dockMenu: () => void;

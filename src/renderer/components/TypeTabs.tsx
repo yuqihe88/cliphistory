@@ -1,5 +1,5 @@
 // ============================================================
-// ClipHistory — 类型分区标签（全部 / 文本 / 图片 / 视频 / 提示词）
+// ClipHistory — 类型分区标签（全部 / 文本 / 图片 / 视频 / 项目）
 // 液态玻璃风格：玻璃胶囊容器 + 浮起白色活动段
 // ============================================================
 
@@ -9,9 +9,8 @@ import type { ClipTypeFilter } from '../../shared/types';
 interface Props {
   value: ClipTypeFilter;
   onChange: (value: ClipTypeFilter) => void;
-  /** 当前是否处于提示词页面 */
-  promptsActive: boolean;
-  onPrompts: () => void;
+  projectsActive: boolean;
+  onProjects: () => void;
 }
 
 const TABS: { label: string; value: ClipTypeFilter; icon: React.ReactNode }[] = [
@@ -45,17 +44,17 @@ const TABS: { label: string; value: ClipTypeFilter; icon: React.ReactNode }[] = 
   },
 ];
 
-export default function TypeTabs({ value, onChange, promptsActive, onPrompts }: Props) {
+export default function TypeTabs({ value, onChange, projectsActive, onProjects }: Props) {
   return (
     <div className="px-3 pt-2.5 pb-1 shrink-0">
-      <div className="glass inline-flex items-center gap-1 rounded-full p-1">
+      <div className="glass flex items-center rounded-2xl p-1 overflow-x-auto">
         {TABS.map((tab) => {
-          const active = !promptsActive && value === tab.value;
+          const active = !projectsActive && value === tab.value;
           return (
             <button
               key={tab.value}
               className={`
-                flex items-center gap-1.5 h-7 px-3 rounded-full text-caption font-medium
+                flex flex-1 shrink-0 items-center justify-center gap-1 h-8 px-2 rounded-xl text-caption font-medium whitespace-nowrap
                 transition-all duration-200
                 ${active
                   ? 'bg-white text-primary-700 shadow-[0_2px_8px_rgba(31,68,135,0.18)]'
@@ -63,9 +62,10 @@ export default function TypeTabs({ value, onChange, promptsActive, onPrompts }: 
                 }
               `}
               onClick={() => onChange(tab.value)}
+              aria-pressed={active}
             >
               <svg
-                className={`w-3.5 h-3.5 ${active ? 'text-primary-500' : 'text-neutral-400'}`}
+                className={`w-3.5 h-3.5 max-[399px]:hidden ${active ? 'text-primary-500' : 'text-neutral-400'}`}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -80,31 +80,16 @@ export default function TypeTabs({ value, onChange, promptsActive, onPrompts }: 
           );
         })}
 
-        {/* 常用提示词入口：与类型分区同一行 */}
         <button
-          className={`
-            flex items-center gap-1.5 h-7 px-3 rounded-full text-caption font-medium
-            transition-all duration-200
-            ${promptsActive
-              ? 'bg-white text-primary-700 shadow-[0_2px_8px_rgba(31,68,135,0.18)]'
-              : 'text-neutral-600 hover:text-primary-600'
-            }
-          `}
-          onClick={onPrompts}
-          title="常用提示词"
+          className={`flex flex-1 shrink-0 items-center justify-center gap-1 h-8 px-2 rounded-xl text-caption font-medium whitespace-nowrap transition-colors ${projectsActive ? 'bg-white text-primary-700 shadow-sm' : 'text-neutral-600 hover:text-primary-600'}`}
+          onClick={onProjects}
+          title="项目素材"
+          aria-pressed={projectsActive}
         >
-          <svg
-            className={`w-3.5 h-3.5 ${promptsActive ? 'text-primary-500' : 'text-neutral-400'}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          <svg className="w-3.5 h-3.5 max-[399px]:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           </svg>
-          提示词
+          项目
         </button>
       </div>
     </div>

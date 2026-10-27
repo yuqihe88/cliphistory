@@ -5,6 +5,7 @@
 // ============================================================
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { ProjectTransferSource, ProjectTransferMode } from '../shared/types';
 
 // ---- IPC 通道常量（内联，避免外部导入） ----
 const IPC = {
@@ -32,6 +33,19 @@ const IPC = {
   PROMPT_UPDATE:       'prompt:update',
   PROMPT_DELETE:       'prompt:delete',
   PROMPT_COPY:         'prompt:copy',
+  PROJECT_GET:         'project:get',
+  PROJECT_CREATE:      'project:create',
+  PROJECT_RENAME:      'project:rename',
+  PROJECT_DELETE:      'project:delete',
+  PROJECT_ITEMS:       'project:items',
+  PROJECT_ADD_TEXT:    'project:add-text',
+  PROJECT_UPDATE_TEXT: 'project:update-text',
+  PROJECT_IMPORT:      'project:import',
+  PROJECT_SAVE_HISTORY: 'project:save-history',
+  PROJECT_TRANSFER:    'project:transfer',
+  PROJECT_ITEM_DELETE: 'project:item-delete',
+  PROJECT_ITEM_COPY:   'project:item-copy',
+  PROJECT_ITEM_REVEAL: 'project:item-reveal',
   DOCK_RESTORE:        'app:dock-restore',
   DOCK_MENU:           'app:dock-menu',
   DOCK_DRAG_START:     'app:dock-drag-start',
@@ -124,6 +138,25 @@ contextBridge.exposeInMainWorld('clipHistory', {
 
   copyPrompt: (id: number) =>
     ipcRenderer.invoke(IPC.PROMPT_COPY, { id }),
+
+  // ---- 项目素材（永久保存模块） ----
+  getProjects: () => ipcRenderer.invoke(IPC.PROJECT_GET),
+  createProject: (name: string) => ipcRenderer.invoke(IPC.PROJECT_CREATE, { name }),
+  renameProject: (id: number, name: string) => ipcRenderer.invoke(IPC.PROJECT_RENAME, { id, name }),
+  deleteProject: (id: number) => ipcRenderer.invoke(IPC.PROJECT_DELETE, { id }),
+  getProjectItems: (projectId: number) => ipcRenderer.invoke(IPC.PROJECT_ITEMS, { projectId }),
+  addProjectText: (projectId: number, title: string, content: string) =>
+    ipcRenderer.invoke(IPC.PROJECT_ADD_TEXT, { projectId, title, content }),
+  updateProjectText: (id: number, title: string, content: string) =>
+    ipcRenderer.invoke(IPC.PROJECT_UPDATE_TEXT, { id, title, content }),
+  importProjectFiles: (projectId: number) => ipcRenderer.invoke(IPC.PROJECT_IMPORT, { projectId }),
+  saveHistoryToProject: (projectId: number, recordId: number) =>
+    ipcRenderer.invoke(IPC.PROJECT_SAVE_HISTORY, { projectId, recordId }),
+  transferToProject: (source: ProjectTransferSource, targetProjectId: number, mode: ProjectTransferMode) =>
+    ipcRenderer.invoke(IPC.PROJECT_TRANSFER, { source, targetProjectId, mode }),
+  deleteProjectItem: (id: number) => ipcRenderer.invoke(IPC.PROJECT_ITEM_DELETE, { id }),
+  copyProjectItem: (id: number) => ipcRenderer.invoke(IPC.PROJECT_ITEM_COPY, { id }),
+  revealProjectItem: (id: number) => ipcRenderer.invoke(IPC.PROJECT_ITEM_REVEAL, { id }),
 
   // ---- 悬浮桌面模式（贴边小图标窗口） ----
   dockRestore: () =>
